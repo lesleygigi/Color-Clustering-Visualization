@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html style='height:100%'>
+<head>
+	<meta charset="utf-8">
+	<title>Kmeans聚类</title>
+	<style type="text/css">
+		#container{
+			height: 100%;
+			display: flex;
+		}
+		#chart{
+			width: 70%;
+			height: 100%;
+		}
+		#image{
+			width: 30%;
+			height: 100%;
+            overflow: scroll;
+            display: flex;
+            flex-wrap: wrap;
+		}
+        #image img{
+            max-width: 100%;
+            height: auto;
+        }
+	</style>
+</head>
+<body style='height:100%;margin:0'>
+    <div id="buttons" style="display:flex;justify-content:center;align-items:center;">
+        <button onclick="showTable('bar')">Bar Chart</button>
+        <button onclick="showTable('pie')">Pie Chart</button>
+        <button onclick="showTable('scatter')">Scatter Chart</button>
+    </div>
+	<div id="container">       
+		<div id="chart"></div>
+		<div id="image"></div>
+	</div>
+<script type='text/javascript' src='echarts.min.js'></script>        
+<script type='text/javascript' src='echarts-gl.min.js'></script>        
+<script type='text/javascript' src='ecStat.min.js'></script>        
+<script type='text/javascript' src='dataTool.min.js'></script> 
+<script src="d3.v3.min.js"></script>
+<script src="Kmeans.js"></script>
+
+<script type="text/javascript">
+    var dom=document.getElementById("chart");
+    var myChart=echarts.init(dom);
+    var app={};
+    //barData
+    var barData={
+        category:[],
+        value:[]
+    };
+    //pieData
+    var pieData={
+        value:[]
+    };
+    //scatterData
+    var scatterData={
+        value:[]
+    };
+	var imageDiv=document.getElementById('image');
+	var imageFolder='images/';
+	var imageList=['01.jpg','02.jpg','03.jpg','04.jpg','05.jpg','06.jpg','07.jpg'];
+	for(var i=0;i<imageList.length;i++){
+		var imgSrc=imageFolder+imageList[i];
+		var img = new Image();
+        img.src=imgSrc;
+        img.style.display='block';
+        (function(imageElement){
+            imageElement.onclick=function(){
+                var canvas=document.createElement('canvas');
+                canvas.width=imageElement.width;
+                canvas.height=imageElement.height;
+                var context = canvas.getContext('2d');
+                context.drawImage(imageElement, 0, 0,imageElement.width,imageElement.height);
+                var data = context.getImageData(0, 0, canvas.width,canvas.height).data;
+				console.log(data.length);
+                var dataSet=[];
+                for(var i=0;i<data.length;i+=4){
+                    dataSet.push(data.slice(i,i+4));
+                }
+                var Kret=Kmeans(3,dataSet);
+                var clusters=Kret.clusters;
+                var centroids=Kret.centroids;
+				console.log(clusters);
+				console.log(centroids);
+                barData.category=[];
+                for(var i=0;i<centroids.length;i++){
+                    var str='['+centroids[i].join(',')+']';
+                    barData.category.push(str);
+                }
+                barData.value=[];
+                pieData.value=[];
+                scatterData.value=[];
+                for(var i=0;i<clusters.length;i++){
+                    var obj1={
+                        value:clusters[i].length,
+                        itemStyle:{
+                            color:rgbaToHex(centroids[i])
+                        }
+                    }
+                    barData.value.push(obj1);
+                    var obj2={
+                        value:clusters[i].length,
+                        name:'['+centroids[i].join(',')+']'+' : '+clusters[i].length,
+                        itemStyle:{
+                            color:rgbaToHex(centroids[i])
+                        }
+                    }
+                    pieData.value.push(obj2);
+                    var group=[]
+                    for(var j=0;j<clusters[i].length;j++){
+                        var obj3={
+                            value:[clusters[i][j][0],clusters[i][j][1],clusters[i][j][2],'Group'+i+' : '+'['+centroids[i].join(',')+']'],
+                            itemStyle:{
+                                color:rgbToHex(centroids[i])
+                            }
+                        };
+                        group.push(obj3);
+                    }
+                    scatterData.value.push({
+						group:group,
+						color:rgbToHex(centroids[i])
+					});
+                }
+                showTable('bar');
+            }
+        })(img);
+        imageDiv.appendChild(img);
+	}
+	window.addEventListener('load',function(){
+		var firstImg=document.querySelector('#image img:first-child');
+		if(firstImg){
+			firstImg.click();
+		}
+	})
+    function showTable(type){
+        myChart.clear();
+        switch(type){
+            case 'bar':
+            option={
+				tooltip:{
+					trigger:'item',
+					formatter:function(params){
+						return params.data.value;
+					}
+				},
+                xAxis:{
+                    type:'category',
+                    data:barData.category
+                },
+                yAxis:{
+                    type:"value"
+                },
+                series:{
+                    data:barData.value,
+                    type:'bar',
+                    showBackground:true,
+                    backgroundStyle:{
+                        color:'rgba(220, 220, 220, 0.8)'
+                    }
+                }
+            };
+            break;
+            case 'pie':
+            option = {
+                tooltip: {
+                  trigger: 'item'
+                },
+                legend: {
+                  orient: 'vertical',
+                  left: 'left'
+                },
+                series: [
+                  {
+                    type: 'pie',
+                    radius: '50%',
+                    data: pieData.value,
+                    emphasis: {
+                      itemStyle: {
+                        shadowBlur: 10,
+                        shadowOffsetX: 0,
+                        shadowColor: 'rgba(0, 0, 0, 0.5)'
+                      }
+                    }
+                  }
+                ]
+            };
+            break;
+            case 'scatter':
+            option={
+                tooltip:{
+                    trigger:'item'
+                },
+                grid3D:{
+                },
+                xAxis3D:{
+                    type:'category',
+					name:'R'
+                },
+                yAxis3D:{
+                    type:'category',
+					name:'G'
+                },
+                zAxis3D:{
+                    type:'category',
+					name:'B'
+                },
+				legend:{
+					data:[]
+				},
+				color:[],
+                series:[
+                ]
+            }
+            for(var i=0;i<scatterData.value.length;i++){
+                option.series.push({
+                    symbolSize:2.5,
+                    type:'scatter3D',
+					name:'Cluster '+i+' : '+scatterData.value[i].group.length,
+                    data:scatterData.value[i].group
+                });
+				option.legend.data.push(
+					'Cluster '+i+' : '+scatterData.value[i].group.length
+				);
+				option.color.push(scatterData.value[i].color);
+            }
+            break;
+        }
+        if(option&&typeof option=="object"){
+            myChart.setOption(option,true);
+            //window.addEventListener('resize', myChart.resize);
+        }
+    }
+	function rgbaToHex(rgba){
+		var hexR=Number(rgba[0]).toString(16).padStart(2,'0');
+		var hexG=Number(rgba[1]).toString(16).padStart(2,'0');
+		var hexB=Number(rgba[2]).toString(16).padStart(2,'0');
+		var hexA=Number(rgba[3]).toString(16).padStart(2,'0');
+		var hex='#'+hexR+hexG+hexB+hexA;
+		return hex;
+	}
+    function rgbToHex(rgb){
+		var hexR=Number(rgb[0]).toString(16).padStart(2,'0');
+		var hexG=Number(rgb[1]).toString(16).padStart(2,'0');
+		var hexB=Number(rgb[2]).toString(16).padStart(2,'0');
+		var hex='#'+hexR+hexG+hexB;
+		return hex;
+	}
+</script>
+
+</body>
+</html>
